@@ -16,9 +16,9 @@ from aiogram.enums import ChatMemberStatus
 
 import database as db
 
-# ---------------------------- Конфигурация ----------------------------
+# ---------------------------- Конфигурация (жёстко) ----------------------------
 BOT_TOKEN = "7843994635:AAGvFPidIKEDCcqKp5NVPgm1yfsdOOrwgrE"
-OWNER_ID = int(os.getenv("7839616999", 0))  # Глобальный владелец бота (Telegram user ID)
+OWNER_ID = 7839616999  # Твой Telegram ID
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -536,3 +536,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
