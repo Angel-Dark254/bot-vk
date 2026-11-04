@@ -13,13 +13,14 @@ except ImportError:
 
 # ================= НАСТРОЙКИ =================
 VK_TOKEN = "vk1.a.-3rYo_oct1ogffbBV9TSz6hFSTSMi7EetIr8KrelZw0LuPj08McUodUxzRxntOzjHdN4DC4VJxUJAFdtny88nMM6fvM58WWNO4sUjm0p8zGMEzacKApr0W219fQPGW3TlvQOtIUfUAIliN2VE78XN5cGVwOtqcH5CN4bSZDoXVdo6QeO9xFJpXJQ3_Y7Mrnql3599BroqKyghUy_p4E7KA"
-VK_TARGET_USER_ID = 638956578
+
+# 👇 НОВЫЙ ID
+VK_TARGET_USER_ID = 638956578 
 
 TG_BOT_TOKEN = "9213635740:AAGql-c8D9q6IKrR36taEZfluCQr8vT1z54"
 TG_CHANNEL_ID = -1004304894570
 TG_PROXY = "socks5h://VLm5KU:5T620n@68.209.60.142:8000" 
 
-# Интервал пульса (7200 сек = 2 часа)
 HEARTBEAT_INTERVAL = 7200 
 # ============================================
 
@@ -56,19 +57,26 @@ def get_friends():
 # --- ИНИЦИАЛИЗАЦИЯ ---
 print("⏳ Загрузка初始 данных профиля ВК...", flush=True)
 profile = get_profile_info()
-last_online = profile.get('online') == 1 if profile else False
-last_name = f"{profile.get('first_name')} {profile.get('last_name')}" if profile else ""
-last_bio = profile.get('status', "") if profile else ""
-last_photo_id = str(profile.get('photo_id', "")) if profile else ""
+if not profile:
+    print("❌ КРИТИЧЕСКАЯ ОШИБКА: Не удалось получить профиль. Проверь токен или ID.", flush=True)
+    sys.exit(1)
+
+# Если поле online отсутствует (скрыто), ставим False
+last_online = profile.get('online') == 1 if 'online' in profile else False
+last_name = f"{profile.get('first_name')} {profile.get('last_name')}"
+last_bio = profile.get('status', "")
+last_photo_id = str(profile.get('photo_id', ""))
 last_friends = get_friends()
 
-print(f"👤 Начальный профиль: {last_name}, Друзей: {len(last_friends)}", flush=True)
-print("🚀 VK Worker запущен (Онлайн + Профиль + Друзья + Пульс)...", flush=True)
+print(f"👤 Профиль: {last_name}", flush=True)
+print(f"🌐 Онлайн при старте: {last_online}", flush=True)
+print(f"🔑 Есть ли поле 'online' в ответе ВК: {'online' in profile}", flush=True)
+print("🚀 VK Worker запущен...", flush=True)
 
 last_friend_check = time.time()
 last_heartbeat_time = time.time()
 
-# 👇 ОТПРАВЛЯЕМ СТАРТОВЫЙ ПУЛЬС СРАЗУ ПОСЛЕ ЗАПУСКА
+# 👇 ОТПРАВЛЯЕМ СТАРТОВЫЙ ПУЛЬС СРАЗУ
 print("💓 [ВК] Отправляем стартовый пульс...", flush=True)
 send_to_tg("VK_HEARTBEAT")
 
@@ -76,15 +84,23 @@ while True:
     try:
         curr_profile = get_profile_info()
         if curr_profile:
-            # 1. ОНЛАЙН
-            is_online = curr_profile.get('online') == 1
-            if is_online and not last_online:
-                send_to_tg("VK_ONLINE")
-                last_online = True
-            elif not is_online and last_online:
-                send_to_tg("VK_OFFLINE")
-                last_online = False
+            # 1. ОНЛАЙН (с отладкой)
+            if 'online' in curr_profile:
+                is_online = curr_profile.get('online') == 1
+                # ЭТА СТРОКА ПОКАЖЕТ, ВИДИТ ЛИ БОТ ИЗМЕНЕНИЕ
+                print(f"🔍 [ВК] Проверка: online={is_online} (last: {last_online})", flush=True)
                 
+                if is_online and not last_online:
+                    print("📤 [ВК] ОТПРАВЛЯЕМ VK_ONLINE", flush=True)
+                    send_to_tg("VK_ONLINE")
+                    last_online = True
+                elif not is_online and last_online:
+                    print("📤 [ВК] ОТПРАВЛЯЕМ VK_OFFLINE", flush=True)
+                    send_to_tg("VK_OFFLINE")
+                    last_online = False
+            else:
+                print("⚠️ [ВК] Поле 'online' отсутствует (скрыт приватностью)", flush=True)
+
             # 2. ИМЯ
             curr_name = f"{curr_profile.get('first_name')} {curr_profile.get('last_name')}"
             if curr_name != last_name and last_name != "":
