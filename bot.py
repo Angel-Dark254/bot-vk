@@ -3,18 +3,21 @@ import requests
 import vk_api
 import subprocess
 import sys
+from datetime import datetime, timezone, timedelta
 
 # --- АВТОУСТАНОВКА ---
 try:
     import vk_api
     import requests
 except ImportError:
+    print("⏳ Установка зависимостей...", flush=True)
     subprocess.check_call([sys.executable, "-m", "pip", "install", "vk_api", "requests[socks]"])
+    print("✅ Установлено!", flush=True)
 
 # ================= НАСТРОЙКИ =================
-VK_TOKEN = "vk1.a.-3rYo_oct1ogffbBV9TSz6hFSTSMi7EetIr8KrelZw0LuPj08McUodUxzRxntOzjHdN4DC4VJxUJAFdtny88nMM6fvM58WWNO4sUjm0p8zGMEzacKApr0W219fQPGW3TlvQOtIUfUAIliN2VE78XN5cGVwOtqcH5CN4bSZDoXVdo6QeO9xFJpXJQ3_Y7Mrnql3599BroqKyghUy_p4E7KA"
+MSK = timezone(timedelta(hours=3))
 
-# 👇 НОВЫЙ ID
+VK_TOKEN = "vk1.a.-3rYo_oct1ogffbBV9TSz6hFSTSMi7EetIr8KrelZw0LuPj08McUodUxzRxntOzjHdN4DC4VJxUJAFdtny88nMM6fvM58WWNO4sUjm0p8zGMEzacKApr0W219fQPGW3TlvQOtIUfUAIliN2VE78XN5cGVwOtqcH5CN4bSZDoXVdo6QeO9xFJpXJQ3_Y7Mrnql3599BroqKyghUy_p4E7KA"
 VK_TARGET_USER_ID = 638956578 
 
 TG_BOT_TOKEN = "9213635740:AAGql-c8D9q6IKrR36taEZfluCQr8vT1z54"
@@ -57,28 +60,41 @@ def get_friends():
 # --- ИНИЦИАЛИЗАЦИЯ ---
 print("⏳ Загрузка初始 данных профиля ВК...", flush=True)
 profile = get_profile_info()
-if not profile:
-    print("❌ КРИТИЧЕСКАЯ ОШИБКА: Не удалось получить профиль. Проверь токен или ID.", flush=True)
-    sys.exit(1)
-
-# Если поле online отсутствует (скрыто), ставим False
-last_online = profile.get('online') == 1 if 'online' in profile else False
-last_name = f"{profile.get('first_name')} {profile.get('last_name')}"
-last_bio = profile.get('status', "")
-last_photo_id = str(profile.get('photo_id', ""))
+last_online = profile.get('online') == 1 if profile else False
+last_name = f"{profile.get('first_name')} {profile.get('last_name')}" if profile else ""
+last_bio = profile.get('status', "") if profile else ""
+last_photo_id = str(profile.get('photo_id', "")) if profile else ""
 last_friends = get_friends()
 
 print(f"👤 Профиль: {last_name}", flush=True)
-print(f"🌐 Онлайн при старте: {last_online}", flush=True)
-print(f"🔑 Есть ли поле 'online' в ответе ВК: {'online' in profile}", flush=True)
-print("🚀 VK Worker запущен...", flush=True)
+print("🚀 VK Worker запущен (Онлайн + Профиль + Друзья + Пульс)...", flush=True)
 
 last_friend_check = time.time()
 last_heartbeat_time = time.time()
 
-# 👇 ОТПРАВЛЯЕМ СТАРТОВЫЙ ПУЛЬС СРАЗУ
 print("💓 [ВК] Отправляем стартовый пульс...", flush=True)
 send_to_tg("VK_HEARTBEAT")
+
+# ================= ТЕСТ ОТПРАВКИ В ИЗБРАННОЕ =================
+try:
+    print("🔑 [ВК] Получаем свой ID для теста...", flush=True)
+    me_vk = vk.users.get()[0]
+    my_vk_id = me_vk['id']
+    print(f"🔑 [ВК] Мой ID: {my_vk_id} ({me_vk.get('first_name')} {me_vk.get('last_name')})", flush=True)
+    
+    print("🧪 [ТЕСТ] Пробуем отправить сообщение в Избранное...", flush=True)
+    test_resp = vk.messages.send(
+        user_id=my_vk_id, 
+        message="🧪 Тест от юзербота. Если ты видишь это — значит, токен имеет право 'messages' и может отправлять сообщения!", 
+        random_id=0
+    )
+    print(f"✅ [ТЕСТ] Сообщение успешно отправлено! Message ID: {test_resp}", flush=True)
+    send_to_tg("VK_TEST_OK")
+except Exception as e:
+    error_str = str(e)
+    print(f"❌ [ТЕСТ] ОШИБКА ОТПРАВКИ: {error_str}", flush=True)
+    send_to_tg(f"VK_TEST_ERROR|{error_str[:150]}") # Обрезаем, чтобы влезло в ТГ
+# ============================================================
 
 while True:
     try:
@@ -87,7 +103,6 @@ while True:
             # 1. ОНЛАЙН (с отладкой)
             if 'online' in curr_profile:
                 is_online = curr_profile.get('online') == 1
-                # ЭТА СТРОКА ПОКАЖЕТ, ВИДИТ ЛИ БОТ ИЗМЕНЕНИЕ
                 print(f"🔍 [ВК] Проверка: online={is_online} (last: {last_online})", flush=True)
                 
                 if is_online and not last_online:
@@ -151,6 +166,6 @@ while True:
             last_heartbeat_time = time.time()
 
     except Exception as e:
-        print(f"❌ Ошибка ВК: {e}", flush=True)
+        print(f"❌ Критическая ошибка ВК: {e}", flush=True)
         
     time.sleep(10)
