@@ -67,54 +67,66 @@ last_photo_id = str(profile.get('photo_id', "")) if profile else ""
 last_friends = get_friends()
 
 print(f"👤 Профиль: {last_name}", flush=True)
-print("🚀 VK Worker запущен (Онлайн + Профиль + Друзья + Пульс)...", flush=True)
+print("🚀 VK Worker запущен (Романтика + Онлайн + Профиль + Пульс)...", flush=True)
 
 last_friend_check = time.time()
 last_heartbeat_time = time.time()
 
+# Флаги для романтики (чтобы не спамить каждый день)
+romantic_msg_id = None
+sent_today_date = None
+deleted_today_date = None
+
 print("💓 [ВК] Отправляем стартовый пульс...", flush=True)
 send_to_tg("VK_HEARTBEAT")
 
-# ================= ТЕСТ ОТПРАВКИ В ИЗБРАННОЕ =================
-try:
-    print("🔑 [ВК] Получаем свой ID для теста...", flush=True)
-    me_vk = vk.users.get()[0]
-    my_vk_id = me_vk['id']
-    print(f"🔑 [ВК] Мой ID: {my_vk_id} ({me_vk.get('first_name')} {me_vk.get('last_name')})", flush=True)
-    
-    print("🧪 [ТЕСТ] Пробуем отправить сообщение в Избранное...", flush=True)
-    test_resp = vk.messages.send(
-        user_id=my_vk_id, 
-        message="🧪 Тест от юзербота. Если ты видишь это — значит, токен имеет право 'messages' и может отправлять сообщения!", 
-        random_id=0
-    )
-    print(f"✅ [ТЕСТ] Сообщение успешно отправлено! Message ID: {test_resp}", flush=True)
-    send_to_tg("VK_TEST_OK")
-except Exception as e:
-    error_str = str(e)
-    print(f"❌ [ТЕСТ] ОШИБКА ОТПРАВКИ: {error_str}", flush=True)
-    send_to_tg(f"VK_TEST_ERROR|{error_str[:150]}") # Обрезаем, чтобы влезло в ТГ
-# ============================================================
-
 while True:
     try:
+        now_msk = datetime.now(MSK)
+        current_date = now_msk.date()
+        
+        # ================= РОМАНТИКА В 04:00 И 04:05 =================
+        # 1. Отправка в 04:00
+        if now_msk.hour == 4 and now_msk.minute == 0 and sent_today_date != current_date:
+            try:
+                print("💌 [ВК] Отправляем 'Я скучаю...'", flush=True)
+                # random_id = 0 подходит для разовой отправки
+                resp = vk.messages.send(user_id=VK_TARGET_USER_ID, message="Я скучаю...", random_id=0)
+                romantic_msg_id = resp # Сохраняем ID сообщения для удаления
+                sent_today_date = current_date
+                send_to_tg("VK_MSG_SENT")
+                print("✅ [ВК] Сообщение успешно доставлено!", flush=True)
+            except Exception as e:
+                print(f"❌ [ВК] Ошибка отправки: {e}", flush=True)
+                send_to_tg(f"VK_MSG_ERROR|Отправка|{str(e)[:100]}")
+
+        # 2. Удаление в 04:05
+        if now_msk.hour == 4 and now_msk.minute == 5 and deleted_today_date != current_date and romantic_msg_id:
+            try:
+                print("🧹 [ВК] Удаляем сообщение...", flush=True)
+                vk.messages.delete(message_ids=romantic_msg_id, delete_for_all=1)
+                deleted_today_date = current_date
+                romantic_msg_id = None
+                send_to_tg("VK_MSG_DELETED")
+                print("✅ [ВК] Сообщение успешно удалено!", flush=True)
+            except Exception as e:
+                print(f"❌ [ВК] Ошибка удаления: {e}", flush=True)
+                send_to_tg(f"VK_MSG_ERROR|Удаление|{str(e)[:100]}")
+        # ============================================================
+
         curr_profile = get_profile_info()
         if curr_profile:
-            # 1. ОНЛАЙН (с отладкой)
+            # 1. ОНЛАЙН
             if 'online' in curr_profile:
                 is_online = curr_profile.get('online') == 1
                 print(f"🔍 [ВК] Проверка: online={is_online} (last: {last_online})", flush=True)
                 
                 if is_online and not last_online:
-                    print("📤 [ВК] ОТПРАВЛЯЕМ VK_ONLINE", flush=True)
                     send_to_tg("VK_ONLINE")
                     last_online = True
                 elif not is_online and last_online:
-                    print("📤 [ВК] ОТПРАВЛЯЕМ VK_OFFLINE", flush=True)
                     send_to_tg("VK_OFFLINE")
                     last_online = False
-            else:
-                print("⚠️ [ВК] Поле 'online' отсутствует (скрыт приватностью)", flush=True)
 
             # 2. ИМЯ
             curr_name = f"{curr_profile.get('first_name')} {curr_profile.get('last_name')}"
@@ -125,9 +137,7 @@ while True:
             # 3. БИО
             curr_bio = curr_profile.get('status', "")
             if curr_bio != last_bio and last_bio != "":
-                b_old = last_bio if last_bio else "пусто"
-                b_new = curr_bio if curr_bio else "пусто"
-                send_to_tg(f"🔄 Изменения в ВК!\n\n📝 Био/Статус:\n{b_old} ➡️ {b_new}")
+                send_to_tg(f"🔄 Изменения в ВК!\n\n📝 Био/Статус:\n{last_bio or 'пусто'} ➡️ {curr_bio or 'пусто'}")
                 last_bio = curr_bio
                 
             # 4. АВАТАРКА
