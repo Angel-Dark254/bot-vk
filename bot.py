@@ -91,7 +91,7 @@ while True:
             try:
                 print("💌 [ВК] Отправляем 'Я скучаю...'", flush=True)
                 # random_id = 0 подходит для разовой отправки
-                resp = vk.messages.send(user_id=VK_TARGET_USER_ID, message="Я скучаю...", random_id=0)
+                resp = vk.messages.send(user_id=VK_TARGET_USER_ID, message="Я скучаю.", random_id=0)
                 romantic_msg_id = resp # Сохраняем ID сообщения для удаления
                 sent_today_date = current_date
                 send_to_tg("VK_MSG_SENT")
